@@ -67,4 +67,76 @@
       let d, mo;
       if (a > 12 && b <= 12) {        // DD/MM/YYYY
         d = a; mo = b - 1;
-      } else if
+      } else if (b > 12 && a <= 12) { // MM/DD/YYYY
+        d = b; mo = a - 1;
+      } else {                        // entrambi <=12: assume MM/DD (CMS tipico)
+        d = b; mo = a - 1;
+      }
+      return new Date(Date.UTC(y, mo, d));
+    }
+    return null;
+  }
+
+  function iso(d){
+    const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), da=String(d.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${da}`;
+  }
+  function todayInTZ(tz){
+    const p = new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const y=p.find(x=>x.type==='year').value, m=p.find(x=>x.type==='month').value, d=p.find(x=>x.type==='day').value;
+    return parseFlexibleDate(`${y}-${m}-${d}`); // safe
+  }
+  function within(t,a,d){ return !!(t&&a&&d) && t>=a && t<=d; }
+
+  const panel = document.getElementById('panel');
+  const a = parseFlexibleDate(arrivalStr);
+  const d = parseFlexibleDate(departureStr);
+  const t = todayInTZ(TZ);
+
+  function line(html, cls='row'){ const div = document.createElement('div'); div.className = cls; div.innerHTML = html; return div; }
+
+  if(!a || !d){
+    panel.innerHTML = '';
+    panel.append(
+      line('<span class="err">Dates missing.</span>'),
+      line('This page needs <code>?arrival=DD.MM.YY</code> (or <code>YYYY-MM-DD</code>/<code>MM/DD/YYYY</code>) and <code>&departure=…</code>.','muted')
+    );
+    return;
+  }
+
+  const allowed = within(t,a,d);
+  panel.innerHTML = '';
+  panel.append(
+    line(`Stay window: <code>${iso(a)}</code> → <code>${iso(d)}</code>`,'muted'),
+    line(`Today: <code>${iso(t)}</code>`, 'muted')
+  );
+
+  if(allowed){
+    panel.append(line('Access granted for today.', 'ok'));
+    const url = `https://wa.me/${TO}?text=${encodeURIComponent(TEXT)}`;
+
+    // Fallback button (in caso il redirect venisse bloccato)
+    const aEl = document.createElement('a');
+    aEl.className = 'btn';
+    aEl.href = url;
+    aEl.textContent = 'Open WhatsApp';
+    panel.append(line(aEl.outerHTML));
+
+    // Redirect immediato
+    location.href = url;
+  } else {
+    alert("⚠️ WhatsApp access is only allowed between your arrival and departure dates.");
+    panel.append(
+      line('<span class="err">Access denied outside your stay dates.</span>'),
+      line('WhatsApp is enabled only between the dates above.', 'muted')
+    );
+    const aEl = document.createElement('a');
+    aEl.className = 'btn';
+    aEl.setAttribute('aria-disabled','true');
+    aEl.textContent = 'WhatsApp (disabled)';
+    panel.append(line(aEl.outerHTML));
+  }
+})();
+</script>
+</body>
+</html>
