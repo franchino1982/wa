@@ -35,40 +35,63 @@
   const TO   = '393283887637';        // WhatsApp number (no +)
   const BASE = '#Neaspace19RueNeuve'; // base text
 
-  // Helpers
+  // Query params
   const qs = new URLSearchParams(location.search);
   const arrivalStr   = qs.get('arrival')   || qs.get('checkin');
   const departureStr = qs.get('departure') || qs.get('checkout');
   const bookingID    = qs.get('b') || qs.get('bookingID');
 
+  // ---- Date parsing robusto ----
+  function toFourDigitYear(yy){
+    yy = Number(yy);
+    // 00–69 -> 2000–2069, 70–99 -> 1970–1999 (fallback classico)
+    return yy < 70 ? 2000 + yy : 1900 + yy;
+  }
+
   function parseFlexibleDate(s){
     if(!s) return null;
     s = String(s).trim();
+
     let m;
-
-    // YYYY-MM-DD
-    if((m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/))) {
-      return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+    // 1) YYYY-MM-DD (e varianti con T…)
+    if((m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/))){
+      const y=+m[1], mo=+m[2]-1, d=+m[3];
+      return new Date(Date.UTC(y, mo, d));
     }
-
-    // Forza MM/DD/YYYY
-    if((m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/))) {
-      return new Date(Date.UTC(+m[3], +m[1]-1, +m[2]));
+    // 2) DD.MM.YY or DD.MM.YYYY
+    if((m = s.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/))){
+      const d=+m[1], mo=+m[2]-1, y=(m[3].length===2? toFourDigitYear(m[3]) : +m[3]);
+      return new Date(Date.UTC(y, mo, d));
     }
-
+    // 3) Slash: MM/DD/YYYY or DD/MM/YYYY -> autodetect
+    if((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/))){
+      let a=+m[1], b=+m[2], y=(m[3].length===2? toFourDigitYear(m[3]) : +m[3]);
+      let d, mo;
+      if (a > 12 && b <= 12) {        // DD/MM/YYYY
+        d = a; mo = b - 1;
+      } else if (b > 12 && a <= 12) { // MM/DD/YYYY
+        d = b; mo = a - 1;
+      } else {                        // entrambi <=12: preferisci MM/DD (Smoobu tipico)
+        d = b; mo = a - 1;
+      }
+      return new Date(Date.UTC(y, mo, d));
+    }
     return null;
   }
 
-  function iso(d){ const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), da=String(d.getUTCDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
+  function iso(d){
+    const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), da=String(d.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${da}`;
+  }
   function todayInTZ(tz){
     const p = new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
     const y=p.find(x=>x.type==='year').value, m=p.find(x=>x.type==='month').value, d=p.find(x=>x.type==='day').value;
-    return parseFlexibleDate(`${m}/${d}/${y}`); // lo rigenero in MM/DD/YYYY
+    // genera come YYYY-MM-DD, che il parser supporta
+    return parseFlexibleDate(`${y}-${m}-${d}`);
   }
   function within(t,a,d){ return !!(t&&a&&d) && t>=a && t<=d; }
 
   const panel = document.getElementById('panel');
-
   const a = parseFlexibleDate(arrivalStr);
   const d = parseFlexibleDate(departureStr);
   const t = todayInTZ(TZ);
@@ -79,7 +102,7 @@
     panel.innerHTML = '';
     panel.append(
       line('<span class="err">Dates missing.</span>'),
-      line('This page needs <code>?arrival=MM/DD/YYYY&amp;departure=MM/DD/YYYY</code> (and optional <code>&amp;b=BOOKINGID</code>).','muted')
+      line('This page needs <code>?arrival=DD.MM.YY</code> (or <code>YYYY-MM-DD</code>/<code>MM/DD/YYYY</code>) and <code>&departure=…</code>. Optional <code>&b=BOOKINGID</code>.','muted')
     );
     return;
   }
