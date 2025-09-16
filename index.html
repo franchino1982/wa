@@ -41,30 +41,36 @@
   const departureStr = qs.get('departure') || qs.get('checkout');
   const bookingID    = qs.get('b') || qs.get('bookingID');
 
-  function parseISO(s){
+  function parseFlexibleDate(s){
     if(!s) return null;
     s = String(s).trim();
     let m;
+
+    // YYYY-MM-DD
     if((m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/))) {
       return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
     }
+
+    // Forza MM/DD/YYYY
     if((m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/))) {
-      return new Date(Date.UTC(+m[3], +m[2]-1, +m[1]));
+      return new Date(Date.UTC(+m[3], +m[1]-1, +m[2]));
     }
+
     return null;
   }
+
   function iso(d){ const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), da=String(d.getUTCDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
   function todayInTZ(tz){
     const p = new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
     const y=p.find(x=>x.type==='year').value, m=p.find(x=>x.type==='month').value, d=p.find(x=>x.type==='day').value;
-    return parseISO(`${y}-${m}-${d}`);
+    return parseFlexibleDate(`${m}/${d}/${y}`); // lo rigenero in MM/DD/YYYY
   }
   function within(t,a,d){ return !!(t&&a&&d) && t>=a && t<=d; }
 
   const panel = document.getElementById('panel');
 
-  const a = parseISO(arrivalStr);
-  const d = parseISO(departureStr);
+  const a = parseFlexibleDate(arrivalStr);
+  const d = parseFlexibleDate(departureStr);
   const t = todayInTZ(TZ);
 
   function line(html, cls='row'){ const div = document.createElement('div'); div.className = cls; div.innerHTML = html; return div; }
@@ -73,7 +79,7 @@
     panel.innerHTML = '';
     panel.append(
       line('<span class="err">Dates missing.</span>'),
-      line('This page needs <code>?arrival=YYYY-MM-DD&amp;departure=YYYY-MM-DD</code> (and optional <code>&amp;b=BOOKINGID</code>).','muted')
+      line('This page needs <code>?arrival=MM/DD/YYYY&amp;departure=MM/DD/YYYY</code> (and optional <code>&amp;b=BOOKINGID</code>).','muted')
     );
     return;
   }
@@ -94,7 +100,7 @@
     aEl.href = url;
     aEl.textContent = 'Open WhatsApp';
     panel.append(line(aEl.outerHTML));
-    // Redirect automatico dopo 1.5s (opzionale)
+    // Redirect automatico dopo 1.5s
     setTimeout(()=>{ location.href = url; }, 1500);
   } else {
     panel.append(
