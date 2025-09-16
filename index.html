@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neaspace WhatsApp Access</title>
+<style>
+  :root{--fg:#111;--muted:#666;--ok:#0a6800;--err:#b00020;--btn:#007bff;--btnH:#0056b3}
+  body{margin:0;font:500 16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--fg)}
+  .wrap{max-width:680px;margin:0 auto;padding:28px 16px}
+  h1{font-size:20px;margin:0 0 12px}
+  .card{border:1px solid #eee;border-radius:12px;padding:18px;margin-top:12px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+  .muted{color:var(--muted);font-size:14px}
+  .ok{color:var(--ok);font-weight:700}
+  .err{color:var(--err);font-weight:700}
+  .btn{display:inline-block;padding:10px 18px;border-radius:8px;background:var(--btn);color:#fff;text-decoration:none;font-weight:700}
+  .btn:hover{background:var(--btnH)}
+  .btn[aria-disabled="true"]{opacity:.6;pointer-events:none}
+  .row{margin:6px 0}
+  code{background:#f6f6f6;border:1px solid #eee;border-radius:6px;padding:2px 6px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Neaspace WhatsApp Access</h1>
+    <div class="card" id="panel">
+      <div class="row muted">Verifying your stay window…</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // CONFIG
+  const TZ   = 'Europe/Paris';        // Nice time
+  const TO   = '393283887637';        // WhatsApp number (no +)
+  const BASE = '#Neaspace19RueNeuve'; // base text
+
+  // Helpers
+  const qs = new URLSearchParams(location.search);
+  const arrivalStr   = qs.get('arrival')   || qs.get('checkin');
+  const departureStr = qs.get('departure') || qs.get('checkout');
+  const bookingID    = qs.get('b') || qs.get('bookingID');
+
+  function parseISO(s){
+    if(!s) return null;
+    s = String(s).trim();
+    let m;
+    if((m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/))) {
+      return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+    }
+    if((m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/))) {
+      return new Date(Date.UTC(+m[3], +m[2]-1, +m[1]));
+    }
+    return null;
+  }
+  function iso(d){ const y=d.getUTCFullYear(), m=String(d.getUTCMonth()+1).padStart(2,'0'), da=String(d.getUTCDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
+  function todayInTZ(tz){
+    const p = new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const y=p.find(x=>x.type==='year').value, m=p.find(x=>x.type==='month').value, d=p.find(x=>x.type==='day').value;
+    return parseISO(`${y}-${m}-${d}`);
+  }
+  function within(t,a,d){ return !!(t&&a&&d) && t>=a && t<=d; }
+
+  const panel = document.getElementById('panel');
+
+  const a = parseISO(arrivalStr);
+  const d = parseISO(departureStr);
+  const t = todayInTZ(TZ);
+
+  function line(html, cls='row'){ const div = document.createElement('div'); div.className = cls; div.innerHTML = html; return div; }
+
+  if(!a || !d){
+    panel.innerHTML = '';
+    panel.append(
+      line('<span class="err">Dates missing.</span>'),
+      line('This page needs <code>?arrival=YYYY-MM-DD&amp;departure=YYYY-MM-DD</code> (and optional <code>&amp;b=BOOKINGID</code>).','muted')
+    );
+    return;
+  }
+
+  const ok = within(t,a,d);
+  panel.innerHTML = '';
+  panel.append(
+    line(`Stay window: <code>${iso(a)}</code> → <code>${iso(d)}</code>`,'muted'),
+    line(`Today: <code>${iso(t)}</code>`, 'muted')
+  );
+
+  if(ok){
+    panel.append(line('Access granted for today.', 'ok'));
+    const text = bookingID ? `${BASE} • b=${bookingID}` : BASE;
+    const url = `https://wa.me/${TO}?text=${encodeURIComponent(text)}`;
+    const aEl = document.createElement('a');
+    aEl.className = 'btn';
+    aEl.href = url;
+    aEl.textContent = 'Open WhatsApp';
+    panel.append(line(aEl.outerHTML));
+    // Redirect automatico dopo 1.5s (opzionale)
+    setTimeout(()=>{ location.href = url; }, 1500);
+  } else {
+    panel.append(
+      line('<span class="err">Access denied outside your stay dates.</span>'),
+      line('WhatsApp is enabled only between the dates above.', 'muted')
+    );
+    const aEl = document.createElement('a');
+    aEl.className = 'btn';
+    aEl.setAttribute('aria-disabled','true');
+    aEl.textContent = 'WhatsApp (disabled)';
+    panel.append(line(aEl.outerHTML));
+  }
+})();
+</script>
+</body>
+</html>
